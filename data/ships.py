@@ -24,7 +24,7 @@ class ShipsTargetTransform(object):
         height (int): height
         width (int): width
     """
-    def __call__(self, targets, width, height):
+    def __call__(self, targets, width, height, test=False):
         """
         Arguments:
             target (annotation) : the target segmentation in run-length encoding format
@@ -32,13 +32,14 @@ class ShipsTargetTransform(object):
         Returns:
             a list containing lists of bounding boxes
         """
+        self.test = test
         bboxes = []
         for target in targets:
             if not target:
                 continue
             pixels = self.rle_to_pixels(target)
             bboxes.extend(self.get_bboxes(pixels, width, height))
-
+        
         return bboxes  # [[xmin, ymin, xmax, ymax, label_ind], ... ]
 
     # src: https://www.kaggle.com/julian3833/2-understanding-and-plotting-rle-bounding-boxes#2.-Understanding-and-plotting-rle-bounding-boxes
@@ -58,6 +59,8 @@ class ShipsTargetTransform(object):
         mask[tuple(zip(*pixels))] = 1
         lbl_0 = label(mask) 
         props = regionprops(lbl_0)
+        if self.test: # returns int pixel position instead of relative position
+            return [(prop.bbox[1], prop.bbox[0], prop.bbox[3], prop.bbox[2], SHIP_LABEL) for prop in props] 
         return [(prop.bbox[1]/height, prop.bbox[0]/width, prop.bbox[3]/height, prop.bbox[2]/width, SHIP_LABEL) for prop in props]
 
 
@@ -150,8 +153,9 @@ class ShipsDetection(data.Dataset):
                 eg: ('001718', [('dog', (96, 13, 438, 332))])
         '''
         img_id = self.ids[index]
-        target = self.targets.loc[img_id]['EncodedPixels'].astype(str).values.tolist()
-        gt = self.target_transform(target, 1, 1)
+        target = self.targets.loc[img_id]['EncodedPixels']
+        target = [target] if type(target) == str else target.astype(str).values.tolist()
+        gt = self.target_transform(target, 768, 768, test=True)
         return img_id, gt
 
     def pull_tensor(self, index):
