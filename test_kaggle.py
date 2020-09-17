@@ -2,6 +2,8 @@ from __future__ import print_function
 import sys
 import os
 import argparse
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
@@ -13,6 +15,7 @@ from data import VOCAnnotationTransform, VOCDetection, BaseTransform, VOC_CLASSE
 import torch.utils.data as data
 from ssd import build_ssd
 
+
 parser = argparse.ArgumentParser(description='Single Shot MultiBox Detection')
 parser.add_argument('--trained_model', default='weights/ssd_300_VOC0712.pth',
                     type=str, help='Trained state_dict file path to open')
@@ -20,8 +23,8 @@ parser.add_argument('--save_folder', default='eval/', type=str,
                     help='Dir to save results')
 parser.add_argument('--visual_threshold', default=0.6, type=float,
                     help='Final confidence threshold')
-parser.add_argument('--cuda', default=True, type=bool,
-                    help='Use cuda to train model')
+parser.add_argument('--cuda', default=False, type=bool,
+                    help='Use cuda to test model')
 parser.add_argument('--root', default=VOC_ROOT, help='Location of Data root directory')
 parser.add_argument('-f', default=None, type=str, help="Dummy arg so we can load in Jupyter Notebooks")
 args = parser.parse_args()
@@ -39,18 +42,15 @@ def test_net(save_folder, net, cuda, testset, transform, thresh, labelmap):
     # dump predictions and assoc. ground truth to text file for now
     filename = save_folder+'test1.txt'
     num_images = len(testset)
+    results = pd.DataFrame(columns=['ImageId', 'EncodedPixels'])
+
     for i in range(num_images):
         print('Testing image {:d}/{:d}....'.format(i+1, num_images))
         img = testset.pull_image(i)
-        img_id, annotation = testset.pull_anno(i)
+        img_id = testset.ids[i]
         x = torch.from_numpy(transform(img)[0]).permute(2, 0, 1)
-        # x = Variable(x.unsqueeze(0))
         x = x.unsqueeze(0)
-
-        with open(filename, mode='a') as f:
-            f.write('\nGROUND TRUTH FOR: '+img_id+'\n')
-            for box in annotation:
-                f.write('label: '+' || '.join(str(b) for b in box)+'\n')
+        
         if cuda:
             x = x.cuda()
 
@@ -62,7 +62,7 @@ def test_net(save_folder, net, cuda, testset, transform, thresh, labelmap):
         pred_num = 0
         for i in range(detections.size(1)):
             j = 0
-            while detections[0, i, j, 0] >= 0.6:
+            while detections[0, i, j, 0] >= 0.3:
                 if pred_num == 0:
                     with open(filename, mode='a') as f:
                         f.write('PREDICTIONS: '+'\n')
@@ -70,12 +70,22 @@ def test_net(save_folder, net, cuda, testset, transform, thresh, labelmap):
                 label_name = labelmap[i-1]
                 pt = (detections[0, i, j, 1:]*scale).cpu().numpy()
                 coords = (pt[0], pt[1], pt[2], pt[3])
+
+                results = results.append({"ImageId": img_id,
+                                "EncodedPixels": ShipsTargetTransform.pixels_to_rle(pt)},
+                                ignore_index=True)
                 pred_num += 1
                 with open(filename, mode='a') as f:
                     f.write(str(pred_num)+' label: '+label_name+' score: ' +
                             str(score) + ' '+' || '.join(str(c) for c in coords) + '\n')
                 j += 1
 
+        if not detections.size(1):
+            results = results.append({"ImageId": img_id,
+                            "EncodedPixels": ""},
+                            ignore_index=True)
+
+    results.to_csv(save_folder+'submission.csv', index=False)
 
 def test_voc():
     # load net
@@ -110,4 +120,5 @@ def test_ships():
              thresh=args.visual_threshold, labelmap=SHIP_CLASSES)
 
 if __name__ == '__main__':
+    torch.cuda.empty_cache()
     test_ships()

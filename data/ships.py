@@ -15,6 +15,7 @@ from skimage.measure import label, regionprops
 
 # note: if you used our download scripts, this should be right
 SHIPS_ROOT = os.path.join(HOME, "data/ships/")
+SHIP_CLASSES = ('ship')
 SHIP_LABEL = 0
 
 class ShipsTargetTransform(object):
@@ -41,6 +42,16 @@ class ShipsTargetTransform(object):
             bboxes.extend(self.get_bboxes(pixels, width, height))
         
         return bboxes  # [[xmin, ymin, xmax, ymax, label_ind], ... ]
+
+    @staticmethod
+    def pixels_to_rle(pts):
+        mask = np.zeros((768, 768))
+        cv2.rectangle(mask, (pts[1], pts[0]), (pts[3], pts[2]), 255)
+        pixels = mask.flatten()
+        pixels = np.concatenate([[0], pixels, [0]])
+        runs = np.where(pixels[1:] != pixels[:-1])[0] + 1
+        runs[1::2] -= runs[::2]
+        return ' '.join(str(x) for x in runs)
 
     # src: https://www.kaggle.com/julian3833/2-understanding-and-plotting-rle-bounding-boxes#2.-Understanding-and-plotting-rle-bounding-boxes
     def rle_to_pixels(self, rle_code):
@@ -90,13 +101,13 @@ class ShipsDetection(data.Dataset):
         self.target_transform = target_transform()
         self.name = dataset_name
         self.datapath = os.path.join(self.root, f'{image_set}_v2')
-
         targetpath = os.path.join(self.root, 'train_ship_segmentations_v2.csv')
         self.targets = pd.read_csv(targetpath, index_col='ImageId')
-
         # do not consider images without ships
-        self.ids = [img_id for img_id in os.listdir(self.datapath) if self.targets.loc[img_id]['EncodedPixels'] is not np.nan]
-
+        if image_set == 'test':
+            self.ids = [img_id for img_id in os.listdir(self.datapath)] 
+        else:
+            self.ids = [img_id for img_id in os.listdir(self.datapath) if self.targets.loc[img_id]['EncodedPixels'] is not np.nan]
 
     def __getitem__(self, index):
         im, gt, h, w = self.pull_item(index)
