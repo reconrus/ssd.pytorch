@@ -218,7 +218,7 @@ class ShipBox:
         return inter_area
 
     def union_area(self, other):
-        return self.area + other.area
+        return other.area
 
     def intersection_over_union(self, other):
         return self.intersection_area(other) / self.union_area(other)

@@ -106,11 +106,6 @@ def test_net(save_folder, net, cuda, testset, transform, thresh, labelmap):
                                       "EncodedPixels": ''},
                                      ignore_index=True)
 
-        if not detections.size(1):
-            results = results.append({"ImageId": img_id,
-                            "EncodedPixels": ""},
-                            ignore_index=True)
-
     results.to_csv(save_folder+'submission.csv', index=False)
 
 
