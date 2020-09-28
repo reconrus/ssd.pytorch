@@ -40,7 +40,7 @@ if not os.path.exists(args.save_folder):
 
 def test_net(save_folder, net, cuda, testset, transform, thresh, labelmap):
     # dump predictions and assoc. ground truth to text file for now
-    filename = save_folder+'test1.txt'
+    filename = save_folder+'ships_boxes.txt'
     num_images = len(testset)
     results = pd.DataFrame(columns=['ImageId', 'EncodedPixels'])
 
@@ -65,7 +65,7 @@ def test_net(save_folder, net, cuda, testset, transform, thresh, labelmap):
             while detections[0, i, j, 0] >= 0.3:
                 if pred_num == 0:
                     with open(filename, mode='a') as f:
-                        f.write('PREDICTIONS: '+'\n')
+                        f.write('image ' + str(img_id) + '\n')
                 score = detections[0, i, j, 0]
                 label_name = labelmap[i-1]
                 pt = (detections[0, i, j, 1:]*scale).cpu().numpy()
@@ -76,8 +76,7 @@ def test_net(save_folder, net, cuda, testset, transform, thresh, labelmap):
                                 ignore_index=True)
                 pred_num += 1
                 with open(filename, mode='a') as f:
-                    f.write(str(pred_num)+' label: '+label_name+' score: ' +
-                            str(score) + ' '+' || '.join(str(c) for c in coords) + '\n')
+                    f.write(' '.join(str(c) for c in coords) + '\n')
                 j += 1
 
         if not detections.size(1):
@@ -106,9 +105,9 @@ def test_voc():
 
 
 def test_ships():
-    num_classes = 1 + 1 # ships + background
+    num_classes = 1 + 1  # ships + background
     net = build_ssd('test', 300, num_classes)
-    net.load_state_dict(torch.load(args.trained_model))
+    net.load_state_dict(torch.load(args.trained_model, map_location=torch.device('cpu')))
     net.eval()
     print('Finished loading model!')
     testset = ShipsDetection(args.root, image_set='test')
@@ -118,6 +117,7 @@ def test_ships():
     test_net(args.save_folder, net, args.cuda, testset,
              BaseTransform(net.size, (104, 117, 123)),
              thresh=args.visual_threshold, labelmap=SHIP_CLASSES)
+
 
 if __name__ == '__main__':
     torch.cuda.empty_cache()

@@ -56,6 +56,7 @@ def test_net(save_folder, net, cuda, testset, transform, thresh, labelmap):
 
         y = net(x)      # forward pass
         detections = y.data
+        print(detections)
         # scale each detection back up to the image
         scale = torch.Tensor([img.shape[1], img.shape[0],
                              img.shape[1], img.shape[0]])
@@ -96,7 +97,7 @@ def test_voc():
 
 
 def test_ships():
-    num_classes = 1 + 1 # ships + background
+    num_classes = 1 + 1  # ships + background
     net = build_ssd('test', 300, num_classes)
     net.load_state_dict(torch.load(args.trained_model))
     net.eval()
@@ -108,6 +109,7 @@ def test_ships():
     test_net(args.save_folder, net, args.cuda, testset,
              BaseTransform(net.size, (104, 117, 123)),
              thresh=args.visual_threshold, labelmap=SHIP_CLASSES)
+
 
 if __name__ == '__main__':
     test_ships()
