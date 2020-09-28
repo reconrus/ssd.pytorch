@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from skimage.measure import label, regionprops
+from math import isnan
 
 # note: if you used our download scripts, this should be right
 SHIPS_ROOT = os.path.join(HOME, "data/ships/")
@@ -166,6 +167,9 @@ class ShipsDetection(data.Dataset):
         '''
         img_id = self.ids[index]
         target = self.targets.loc[img_id]['EncodedPixels']
+        if isinstance(target, float) and isnan(target):
+            return img_id, None
+
         target = [target] if type(target) == str else target.astype(str).values.tolist()
         gt = self.target_transform(target, 768, 768, test=True)
         return img_id, gt
@@ -204,6 +208,20 @@ class ShipBox:
             intersection = 0
 
         return intersection
+
+    def intersection_area(self, other):
+        x0, y0, x1, y1 = other.pt
+        X0, Y0, X1, Y1 = self.pt
+        width = ShipBox.calculateIntersection(x0, x1, X0, X1)
+        height = ShipBox.calculateIntersection(y0, y1, Y0, Y1)
+        inter_area = width * height
+        return inter_area
+
+    def union_area(self, other):
+        return self.area + other.area
+
+    def intersection_over_union(self, other):
+        return self.intersection_area(other) / self.union_area(other)
 
     def intersects(self, other) -> bool:
         x0, y0, x1, y1 = other.pt
