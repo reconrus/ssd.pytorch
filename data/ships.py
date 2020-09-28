@@ -18,6 +18,7 @@ SHIPS_ROOT = os.path.join(HOME, "data/ships/")
 SHIP_CLASSES = ('ship')
 SHIP_LABEL = 0
 
+
 class ShipsTargetTransform(object):
     """Transforms a Ships annotation into a Tensor of bbox coords and label index
 
@@ -181,3 +182,36 @@ class ShipsDetection(data.Dataset):
             tensorized version of img, squeezed
         '''
         return torch.Tensor(self.pull_image(index)).unsqueeze_(0)
+
+
+class ShipBox:
+
+    def __init__(self, pt):
+        self.pt = pt
+        self.area = float((pt[2] - pt[0]) * (pt[3] - pt[1]))
+
+    @staticmethod
+    def calculateIntersection(a0, a1, b0, b1):
+        if a0 >= b0 and a1 <= b1:  # Contained
+            intersection = a1 - a0
+        elif a0 < b0 and a1 > b1:  # Contains
+            intersection = b1 - b0
+        elif a0 < b0 and a1 > b0:  # Intersects right
+            intersection = a1 - b0
+        elif a1 > b1 and a0 < b1:  # Intersects left
+            intersection = b1 - a0
+        else:  # No intersection (either side)
+            intersection = 0
+
+        return intersection
+
+    def intersects(self, other) -> bool:
+        x0, y0, x1, y1 = other.pt
+        X0, Y0, X1, Y1 = self.pt
+        width = ShipBox.calculateIntersection(x0, x1, X0, X1)
+        height = ShipBox.calculateIntersection(y0, y1, Y0, Y1)
+        inter_area = width * height
+        return inter_area > 0
+
+    def __gt__(self, other):
+        return self.area > other.area
