@@ -11,7 +11,7 @@ import torchvision.transforms as transforms
 from torch.autograd import Variable
 from data import VOC_ROOT, VOC_CLASSES, SHIP_CLASSES
 from PIL import Image
-from data import VOCAnnotationTransform, VOCDetection, BaseTransform, VOC_CLASSES, ShipsDetection, ShipsTargetTransform
+from data import VOCAnnotationTransform, VOCDetection, BaseTransform, VOC_CLASSES, ShipsDetection, ShipsTargetTransform, ShipBox
 import torch.utils.data as data
 from ssd import build_ssd
 
@@ -45,6 +45,7 @@ def test_net(save_folder, net, cuda, testset, transform, thresh, labelmap):
     results = pd.DataFrame(columns=['ImageId', 'EncodedPixels'])
 
     for i in range(num_images):
+        ships = list()
         print('Testing image {:d}/{:d}....'.format(i+1, num_images))
         img = testset.pull_image(i)
         img_id = testset.ids[i]
@@ -69,15 +70,35 @@ def test_net(save_folder, net, cuda, testset, transform, thresh, labelmap):
                 score = detections[0, i, j, 0]
                 label_name = labelmap[i-1]
                 pt = (detections[0, i, j, 1:]*scale).cpu().numpy()
-                coords = (pt[0], pt[1], pt[2], pt[3])
-
-                results = results.append({"ImageId": img_id,
-                                "EncodedPixels": ShipsTargetTransform.pixels_to_rle(pt)},
-                                ignore_index=True)
-                pred_num += 1
-                with open(filename, mode='a') as f:
-                    f.write(' '.join(str(c) for c in coords) + '\n')
+                ships.append(ShipBox(pt))
                 j += 1
+                pred_num += 1
+
+        # check intersections of ship boxes
+        removed_ships = set()
+        for i, box in enumerate(ships):
+            for j, other_box in enumerate(ships):
+                if i == j:
+                    continue
+                if box.intersects(other_box):
+                    # remove ship with less area box
+                    if box > other_box:
+                        removed_ships.add(j)
+                    else:
+                        removed_ships.add(i)
+
+        # write non-eleminated ship boxes to file
+        for i, box in enumerate(ships):
+            if i in removed_ships:
+                continue
+            pt = box.pt
+            coords = (pt[0], pt[1], pt[2], pt[3])
+
+            results = results.append({"ImageId": img_id,
+                            "EncodedPixels": ShipsTargetTransform.pixels_to_rle(pt)},
+                            ignore_index=True)
+            with open(filename, mode='a') as f:
+                f.write(' '.join(str(c) for c in coords) + '\n')
 
         if not detections.size(1):
             results = results.append({"ImageId": img_id,
@@ -120,5 +141,6 @@ def test_ships():
 
 
 if __name__ == '__main__':
+    # 42f290388.jpg
     torch.cuda.empty_cache()
     test_ships()
