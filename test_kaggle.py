@@ -14,6 +14,7 @@ from PIL import Image
 from data import VOCAnnotationTransform, VOCDetection, BaseTransform, VOC_CLASSES, ShipsDetection, ShipsTargetTransform, ShipBox
 import torch.utils.data as data
 from ssd import build_ssd
+from tqdm import tqdm
 
 
 parser = argparse.ArgumentParser(description='Single Shot MultiBox Detection')
@@ -44,9 +45,9 @@ def test_net(save_folder, net, cuda, testset, transform, thresh, labelmap):
     num_images = len(testset)
     results = pd.DataFrame(columns=['ImageId', 'EncodedPixels'])
 
-    for i in range(num_images):
+    for i in tqdm(range(num_images)):
         ships = list()
-        print('Testing image {:d}/{:d}....'.format(i+1, num_images))
+        # print('Testing image {:d}/{:d}....'.format(i+1, num_images))
         img = testset.pull_image(i)
         img_id = testset.ids[i]
         x = torch.from_numpy(transform(img)[0]).permute(2, 0, 1)
@@ -100,12 +101,18 @@ def test_net(save_folder, net, cuda, testset, transform, thresh, labelmap):
             with open(filename, mode='a') as f:
                 f.write(' '.join(str(c) for c in coords) + '\n')
 
+        if len(ships) - len(removed_ships) == 0:
+            results = results.append({"ImageId": img_id,
+                                      "EncodedPixels": ''},
+                                     ignore_index=True)
+
         if not detections.size(1):
             results = results.append({"ImageId": img_id,
                             "EncodedPixels": ""},
                             ignore_index=True)
 
     results.to_csv(save_folder+'submission.csv', index=False)
+
 
 def test_voc():
     # load net
